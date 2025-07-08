@@ -1,0 +1,127 @@
+security:
+
+
+    # https://symfony.com/doc/current/security.html#registering-the-user-hashing-passwords
+    password_hashers:
+        Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface: 'auto'
+    # https://symfony.com/doc/current/security.html#loading-the-user-the-user-provider
+
+    providers:
+        # used to reload user from session & other features (e.g. switch_user)
+        app_user_provider:
+            entity:
+                class: App\Entity\User
+                property: username
+    role_hierarchy:
+        ROLE_SUPERUSER: [ROLE_ADMINISTRATOR,ROLE_EDITORIAL,ROLE_WRITER,ROLE_USER ,ROLE_ENABLE_PROFILE,ROLE_EDIT_PROFILE,ROLE_ADD_PROFILE,ROLE_AG_ENABLE_USER,ROLE_AG_DELETE_USER,ROLE_RESET_PASSWORD_USER,ROLE_DELETE_USER,ROLE_ENABLE_USER,ROLE_ADD_USER,ROLE_VIEW_USER,ROLE_EDIT_USER,ROLE_AG_ENABLE_PROFILE,ROLE_AG_DELETE_PROFILE,ROLE_DELETE_PROFILE ]
+        #Roles for profile CRUD
+        ROLE_ACCESS_MENU_MANAGE_PROFILE: [ ROLE_ACCESS_MENU_USER,ROLE_ADMIN ]
+        ROLE_LIST_PROFILE: [ ROLE_ACCESS_MENU_MANAGE_PROFILE ]
+        ROLE_EDIT_PROFILE: [ ROLE_LIST_PROFILE ]
+        ROLE_ADD_PROFILE: [ ROLE_LIST_PROFILE ]
+        ROLE_ENABLE_PROFILE: [ ROLE_LIST_PROFILE ]
+        ROLE_DELETE_PROFILE: [ ROLE_LIST_PROFILE ]
+        ROLE_AG_PROFILE: [ ROLE_LIST_PROFILE ]
+        ROLE_AG_DELETE_PROFILE: [ ROLE_AG_PROFILE ]
+        ROLE_AG_ENABLE_PROFILE: [ ROLE_AG_PROFILE ]
+        #Role for user crud
+        ROLE_ACCESS_MENU_MANAGE_USER: [ ROLE_ACCESS_MENU_USER,ROLE_ADMIN ]
+        ROLE_LIST_USER: [ ROLE_ACCESS_MENU_MANAGE_USER ]
+        ROLE_EDIT_USER: [ ROLE_LIST_USER ]
+        ROLE_VIEW_USER: [ ROLE_LIST_USER ]
+        ROLE_ADD_USER: [ ROLE_LIST_USER ]
+        ROLE_ENABLE_USER: [ ROLE_LIST_USER ]
+        ROLE_DELETE_USER: [ ROLE_LIST_USER ]
+        ROLE_RESET_PASSWORD_USER: [ ROLE_LIST_USER ]
+        ROLE_AG_USER: [ ROLE_LIST_USER ]
+        ROLE_AG_DELETE_USER: [ ROLE_AG_USER ]
+        ROLE_AG_ENABLE_USER: [ ROLE_AG_USER ]
+        #Roles for categorie
+        ROLE_ACCESS_MENU_MANAGE_CATEGORIE: [ ROLE_ACCESS_MENU_CATEGORIE,ROLE_ADMIN ]
+        ROLE_LIST_CATEGORIE: [ ROLE_ACCESS_MENU_MANAGE_CATEGORIE ]
+        ROLE_EDIT_CATEGORIE: [ ROLE_LIST_CATEGORIE ]
+        ROLE_ADD_CATEGORIE: [ ROLE_LIST_CATEGORIE ]
+        ROLE_ENABLE_CATEGORIE: [ ROLE_LIST_CATEGORIE ]
+        ROLE_DELETE_CATEGORIE: [ ROLE_LIST_CATEGORIE ]
+        ROLE_AG_CATEGORIE: [ ROLE_LIST_CATEGORIE ]
+        ROLE_AG_DELETE_CATEGORIE: [ ROLE_AG_CATEGORIE ]
+        ROLE_AG_ENABLE_CATEGORIE: [ ROLE_AG_CATEGORIE ]
+        #Roles for general
+        ROLE_ACCESS_MENU_MANAGE_GENERAL: [ ROLE_ACCESS_MENU_PARAMETRE,ROLE_ADMIN ]
+        #Roles for faq
+        ROLE_ACCESS_MENU_MANAGE_FAQ: [ ROLE_ACCESS_MENU_PARAMETRE,ROLE_ADMIN ]
+        ROLE_LIST_FAQ: [ ROLE_ACCESS_MENU_MANAGE_FAQ ]
+        ROLE_EDIT_FAQ: [ ROLE_LIST_FAQ ]
+        ROLE_ADD_FAQ: [ ROLE_LIST_FAQ ]
+        ROLE_ENABLE_FAQ: [ ROLE_LIST_FAQ ]
+        ROLE_DELETE_FAQ: [ ROLE_LIST_FAQ ]
+        ROLE_AG_FAQ: [ ROLE_LIST_FAQ ]
+        ROLE_AG_DELETE_FAQ: [ ROLE_AG_FAQ ]
+        ROLE_AG_ENABLE_FAQ: [ ROLE_AG_FAQ ]
+        #Roles for contact
+        ROLE_ACCESS_MENU_MANAGE_INBOX: [ ROLE_ACCESS_MENU_CONTACT,ROLE_ADMIN ]
+        #Roles for BLOG
+        ROLE_ACCESS_MENU_MANAGE_BLOG: [ ROLE_ACCESS_MENU_BLOG , ROLE_ADMIN , ROLE_ACCESS_MENU_MANAGE_HISTORYBLOG]
+        ROLE_LIST_BLOG: [ ROLE_ACCESS_MENU_MANAGE_BLOG ]
+        ROLE_EDIT_BLOG: [ ROLE_LIST_BLOG ]
+        ROLE_ADD_BLOG: [ ROLE_LIST_BLOG ]
+        ROLE_ENABLE_BLOG: [ ROLE_LIST_BLOG ]
+        ROLE_DELETE_BLOG: [ ROLE_LIST_BLOG ]
+        ROLE_AG_BLOG: [ ROLE_LIST_BLOG ]
+        ROLE_AG_DELETE_BLOG: [ ROLE_AG_BLOG ]
+        ROLE_AG_ENABLE_BLOG: [ ROLE_AG_BLOG ]
+        #Roles for BLOG History
+        ROLE_ACCESS_MENU_MANAGE_HISTORYBLOG: [ ROLE_ACCESS_MENU_BLOG , ROLE_ADMIN ]
+        ROLE_LIST_HISTORYBLOG: [ ROLE_ACCESS_MENU_MANAGE_HISTORYBLOG ]
+        ROLE_VIEW_HISTORYBLOG: [ ROLE_LIST_HISTORYBLOG ]
+        ROLE_UNDO_HISTORYBLOG: [ ROLE_LIST_HISTORYBLOG ]
+
+
+    firewalls:
+        dev:
+            pattern: ^/(_(profiler|wdt)|css|images|js)/
+            security: false
+        main:
+            pattern: ^/
+            user_checker: App\Security\UserChecker
+            lazy: true
+            provider: app_user_provider
+            custom_authenticator:
+                - App\Security\LoginFormAuthenticator
+            logout:
+                path: app_logout
+                target: app_login
+            remember_me:
+                secret: '%kernel.secret%'
+                lifetime: 2592000
+            switch_user: true
+
+            login_throttling:
+                max_attempts: 4          # per minute ...
+                interval: '2 minutes' # ... or in a custom period
+
+            # activate different ways to authenticate
+            # https://symfony.com/doc/current/security.html#the-firewall
+
+            # https://symfony.com/doc/current/security/impersonating_user.html
+            # switch_user: true
+
+    # Easy way to control access for large sections of your site
+    # Note: Only the *first* access control that matches will be used
+    access_control:
+        - { path: ^/(%app_locales%)/admin/login, roles: PUBLIC_ACCESS}
+        - { path: ^/(%app_locales%)/admin, roles: ROLE_ADMIN}
+        # - { path: ^/profile, roles: ROLE_USER }
+
+when@test:
+    security:
+        password_hashers:
+            # By default, password hashers are resource intensive and take time. This is
+            # important to generate secure password hashes. In tests however, secure hashes
+            # are not important, waste resources and increase test times. The following
+            # reduces the work factor to the lowest possible values.
+            Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface:
+                algorithm: auto
+                cost: 4 # Lowest possible value for bcrypt
+                time_cost: 3 # Lowest possible value for argon
+                memory_cost: 10 # Lowest possible value for argon

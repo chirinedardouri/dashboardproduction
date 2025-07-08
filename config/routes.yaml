@@ -1,0 +1,15 @@
+controllers:
+    prefix: /{_locale}
+    requirements:
+        _locale: '%app_locales%'
+    defaults:
+        _locale: '%locale%'
+    resource:
+        path: ../src/Controller/
+        namespace: App\Controller
+    type: attribute
+
+# When using symfony translations cant find a way to override path "/" in controller so had to set it here
+real_index:
+    path: /
+    controller: App\Controller\AdminController::realIndex
