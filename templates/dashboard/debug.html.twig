@@ -1,0 +1,71 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Debug Excel Upload
+{% endblock %}
+
+{% block body %}
+	<div class="container mt-4">
+		<h2>Debug Excel Upload</h2>
+
+		{{ form_start(form) }}
+		{{ form_widget(form) }}
+		<button type="submit" class="btn btn-primary">Upload and Debug</button>
+		{{ form_end(form) }}
+
+		{% if debugData is defined %}
+			<div class="mt-4">
+				<h3>Excel Data Structure (First 10 rows)</h3>
+				<p>
+					<strong>Total rows:</strong>
+					{{ totalRows }}</p>
+
+				<table class="table table-striped">
+					<thead>
+						<tr>
+							<th>Row</th>
+							<th>Column A</th>
+							<th>Column B</th>
+							<th>Column C</th>
+							<th>Column D</th>
+							<th>Column E</th>
+							<th>Column F</th>
+							<th>Column G</th>
+							<th>Column H</th>
+							<th>All Columns</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for row in debugData %}
+							<tr>
+								<td>{{ row.row }}</td>
+								<td>{{ row.data[0] ?? 'null' }}</td>
+								<td>{{ row.data[1] ?? 'null' }}</td>
+								<td>{{ row.data[2] ?? 'null' }}</td>
+								<td>{{ row.data[3] ?? 'null' }}</td>
+								<td>{{ row.data[4] ?? 'null' }}</td>
+								<td>{{ row.data[5] ?? 'null' }}</td>
+								<td>{{ row.data[6] ?? 'null' }}</td>
+								<td>{{ row.data[7] ?? 'null' }}</td>
+								<td>
+									<small>{{ row.data|json_encode }}</small>
+								</td>
+							</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+
+				<h3>BRAS Entities in Database</h3>
+				<ul>
+					{% if brasNames is not empty %}
+						{% for bras in brasNames %}
+							<li>{{ bras }}</li>
+						{% endfor %}
+					{% else %}
+						<li>No BRAS entities found in database</li>
+					{% endif %}
+
+				</ul>
+			</div>
+		{% endif %}
+	</div>
+{% endblock %}

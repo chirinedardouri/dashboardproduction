@@ -59,56 +59,56 @@ class DashboardController extends AbstractController
             'form' => $form->createView(),
         ]);
     }
+#[Route('/dashboard/debug-excel', name: 'debug_excel', methods: ['GET', 'POST'])]
+public function debugExcel(Request $request): Response
+{
+    $form = $this->createForm(ExcelUploadType::class);
+    $form->handleRequest($request);
 
-    // POST route - Process the uploaded file
-    #[Route('/dashboard/import', name: 'dashboard_import_process', methods: ['POST'])]
-    public function processImport(Request $request): Response
-    {
-        $form = $this->createForm(ExcelUploadType::class);
-        $form->handleRequest($request);
+    if ($form->isSubmitted() && $form->isValid()) {
+        /** @var UploadedFile $uploadedFile */
+        $uploadedFile = $form->get('excelFile')->getData();
 
-        if ($form->isSubmitted() && $form->isValid()) {
+        if ($uploadedFile) {
             try {
-                $uploadedFile = $form->get('file')->getData();
-                $importType = $request->request->get('import_type', 'production');
-                
-                if (!$uploadedFile) {
-                    $this->addFlash('error', 'No file uploaded');
-                    return $this->redirectToRoute('dashboard_import');
+                $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($uploadedFile->getRealPath());
+                $worksheet   = $spreadsheet->getActiveSheet();
+                $data        = $worksheet->toArray();
+
+                // Afficher les 10 premières lignes
+                $debugData = [];
+                for ($i = 0; $i < min(10, count($data)); $i++) {
+                    $debugData[] = [
+                        'row'  => $i,
+                        'data' => $data[$i],
+                    ];
                 }
-                
-                if (!in_array($uploadedFile->getClientOriginalExtension(), ['xlsx', 'xls'])) {
-                    $this->addFlash('error', 'Invalid file format. Please upload Excel files only.');
-                    return $this->redirectToRoute('dashboard_import');
-                }
-                
-                $filePath = $uploadedFile->getRealPath();
-                
-                if ($importType === 'schedule') {
-                    $result = $this->importService->importScheduleFromExcel($filePath);
-                } else {
-                    $result = $this->importService->importProductionData($filePath);
-                }
-                
-                $this->addFlash('success', 'Excel file processed successfully! ' . $result['imported'] . ' records imported.');
-                
-                if (!empty($result['errors'])) {
-                    foreach ($result['errors'] as $error) {
-                        $this->addFlash('warning', $error);
-                    }
-                }
-                
-                return $this->redirectToRoute('dashboard_import');
-                
-            } catch (\Exception $e) {
-                $this->addFlash('error', 'Error processing file: ' . $e->getMessage());
+
+                // Vérifie les BRAS existants
+                $brasNames = array_map(
+                    fn ($b) => $b->getName(),
+                    $this->entityManager->getRepository(\App\Entity\Bras::class)->findAll()
+                );
+
+                return $this->render('dashboard/debug.html.twig', [
+                    'debugData' => $debugData,
+                    'brasNames' => $brasNames,
+                    'totalRows' => count($data),
+                    'form'      => $form->createView(),
+                ]);
+
+            } catch (\Throwable $e) {
+                $this->addFlash('error', 'Error reading Excel file: '.$e->getMessage());
             }
         }
-
-        return $this->render('dashboard/upload.html.twig', [
-            'form' => $form->createView(),
-        ]);
     }
+
+    // GET initial ou formulaire invalide
+    return $this->render('dashboard/debug.html.twig', [
+        'form' => $form->createView(),
+    ]);
+}
+
 
     // Keep the JSON API endpoint for AJAX uploads if needed
     #[Route('/dashboard/api/import', name: 'api_dashboard_import', methods: ['POST'])]
