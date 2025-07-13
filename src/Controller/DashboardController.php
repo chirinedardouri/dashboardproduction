@@ -5,7 +5,8 @@ namespace App\Controller;
 use App\Entity\ProductionLine;
 use App\Entity\ProductionSchedule;
 use App\Entity\ProductionTarget;
-use App\Service\ExcelImportService;
+use App\Form\ExcelUploadType;
+use App\Service\ExcelProcessingService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -18,7 +19,7 @@ class DashboardController extends AbstractController
 {
     public function __construct(
         private EntityManagerInterface $entityManager,
-        private ExcelImportService $importService
+        private ExcelProcessingService $importService
     ) {}
 
     #[Route('/dashboard', name: 'dashboard')]
@@ -48,71 +49,70 @@ class DashboardController extends AbstractController
         return new JsonResponse($data);
     }
 
-    private function getProductionLinesWithData(): array
+    // GET route - Display the upload form
+    #[Route('/dashboard/import', name: 'dashboard_import', methods: ['GET'])]
+    public function showImportForm(): Response
     {
-        $lines = $this->entityManager->getRepository(ProductionLine::class)->findBy(['isActive' => true]);
-        $data = [];
+        $form = $this->createForm(ExcelUploadType::class);
         
-        foreach ($lines as $line) {
-            $targets = $this->entityManager->getRepository(ProductionTarget::class)
-                                          ->findBy(['productionLine' => $line], ['createdAt' => 'DESC'], 3);
-            
-            $totalTarget = 0;
-            $totalActual = 0;
-            
-            foreach ($targets as $target) {
-                $totalTarget += $target->getTargetQuantity();
-                $totalActual += $target->getActualQuantity();
-            }
-            
-            $data[] = [
-                'id' => $line->getId(),
-                'name' => $line->getName(),
-                'type' => $line->getLineType(),
-                'capacity' => $line->getCapacity(),
-                'totalTarget' => $totalTarget,
-                'totalActual' => $totalActual,
-                'percentage' => $totalTarget > 0 ? round(($totalActual / $totalTarget) * 100, 2) : 0,
-                'targets' => array_map(function($target) {
-                    return [
-                        'shift' => $target->getShift(),
-                        'target' => $target->getTargetQuantity(),
-                        'actual' => $target->getActualQuantity(),
-                        'percentage' => $target->getAchievementPercentage(),
-                        'date' => $target->getTargetDate()->format('Y-m-d')
-                    ];
-                }, $targets)
-            ];
-        }
-        
-        return $data;
+        return $this->render('dashboard/upload.html.twig', [
+            'form' => $form->createView(),
+        ]);
     }
 
-   private function getShiftData(): array
+    // POST route - Process the uploaded file
+    #[Route('/dashboard/import', name: 'dashboard_import_process', methods: ['POST'])]
+    public function processImport(Request $request): Response
     {
-        $today = new \DateTime();
-        $targets = $this->entityManager->getRepository(ProductionTarget::class)
-                                      ->findBy(['targetDate' => $today]);
-        
-        $shiftSummary = [
-            'Matin' => ['planned' => 0, 'realized' => 0],
-            'AM' => ['planned' => 0, 'realized' => 0],
-            'Nuit' => ['planned' => 0, 'realized' => 0],
-        ];
-        
-        foreach ($targets as $target) {
-            $shift = $target->getShift();
-            if (isset($shiftSummary[$shift])) {
-                $shiftSummary[$shift]['planned'] += $target->getTargetQuantity();
-                $shiftSummary[$shift]['realized'] += $target->getActualQuantity();
+        $form = $this->createForm(ExcelUploadType::class);
+        $form->handleRequest($request);
+
+        if ($form->isSubmitted() && $form->isValid()) {
+            try {
+                $uploadedFile = $form->get('file')->getData();
+                $importType = $request->request->get('import_type', 'production');
+                
+                if (!$uploadedFile) {
+                    $this->addFlash('error', 'No file uploaded');
+                    return $this->redirectToRoute('dashboard_import');
+                }
+                
+                if (!in_array($uploadedFile->getClientOriginalExtension(), ['xlsx', 'xls'])) {
+                    $this->addFlash('error', 'Invalid file format. Please upload Excel files only.');
+                    return $this->redirectToRoute('dashboard_import');
+                }
+                
+                $filePath = $uploadedFile->getRealPath();
+                
+                if ($importType === 'schedule') {
+                    $result = $this->importService->importScheduleFromExcel($filePath);
+                } else {
+                    $result = $this->importService->importProductionData($filePath);
+                }
+                
+                $this->addFlash('success', 'Excel file processed successfully! ' . $result['imported'] . ' records imported.');
+                
+                if (!empty($result['errors'])) {
+                    foreach ($result['errors'] as $error) {
+                        $this->addFlash('warning', $error);
+                    }
+                }
+                
+                return $this->redirectToRoute('dashboard_import');
+                
+            } catch (\Exception $e) {
+                $this->addFlash('error', 'Error processing file: ' . $e->getMessage());
             }
         }
-        
-        return $shiftSummary;
+
+        return $this->render('dashboard/upload.html.twig', [
+            'form' => $form->createView(),
+        ]);
     }
 
-    #[Route('/dashboard/import', name: 'dashboard_import', methods: ['POST'])]
-    public function importExcel(Request $request): JsonResponse
+    // Keep the JSON API endpoint for AJAX uploads if needed
+    #[Route('/dashboard/api/import', name: 'api_dashboard_import', methods: ['POST'])]
+    public function importExcelApi(Request $request): JsonResponse
     {
         /** @var UploadedFile $file */
         $file = $request->files->get('excel_file');
@@ -162,5 +162,68 @@ class DashboardController extends AbstractController
             'line' => $line,
             'targets' => $targets,
         ]);
+    }
+
+    private function getProductionLinesWithData(): array
+    {
+        $lines = $this->entityManager->getRepository(ProductionLine::class)->findBy(['isActive' => true]);
+        $data = [];
+        
+        foreach ($lines as $line) {
+            $targets = $this->entityManager->getRepository(ProductionTarget::class)
+                                          ->findBy(['productionLine' => $line], ['createdAt' => 'DESC'], 3);
+            
+            $totalTarget = 0;
+            $totalActual = 0;
+            
+            foreach ($targets as $target) {
+                $totalTarget += $target->getTargetQuantity();
+                $totalActual += $target->getActualQuantity();
+            }
+            
+            $data[] = [
+                'id' => $line->getId(),
+                'name' => $line->getName(),
+                'type' => $line->getLineType(),
+                'capacity' => $line->getCapacity(),
+                'totalTarget' => $totalTarget,
+                'totalActual' => $totalActual,
+                'percentage' => $totalTarget > 0 ? round(($totalActual / $totalTarget) * 100, 2) : 0,
+                'targets' => array_map(function($target) {
+                    return [
+                        'shift' => $target->getShift(),
+                        'target' => $target->getTargetQuantity(),
+                        'actual' => $target->getActualQuantity(),
+                        'percentage' => $target->getAchievementPercentage(),
+                        'date' => $target->getTargetDate()->format('Y-m-d')
+                    ];
+                }, $targets)
+            ];
+        }
+        
+        return $data;
+    }
+
+    private function getShiftData(): array
+    {
+        $today = new \DateTime();
+        $targets = $this->entityManager->getRepository(ProductionTarget::class)
+                                      ->findBy(['targetDate' => $today]);
+        
+        $shiftSummary = [
+            'Matin' => ['planned' => 0, 'realized' => 0],
+            'AM' => ['planned' => 0, 'realized' => 0],
+            'Nuit' => ['planned' => 0, 'realized' => 0],
+        ];
+        
+        foreach ($targets as $target) {
+            $shift = $target->getShift();
+            if (isset($shiftSummary[$shift])) {
+                $shiftSummary[$shift]['planned'] += $target->getTargetQuantity();
+                $shiftSummary[$shift]['realized'] += $target->getActualQuantity();
+            }
+        }
+        
+        return $shiftSummary;
     }
 }

@@ -1,0 +1,200 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Production Dashboard{% endblock %}
+
+{% block body %}
+<div class="container-fluid">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-bottom mb-4">
+        <div class="container-fluid px-4 py-3">
+            <div class="row align-items-center">
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-primary" style="width: 32px; height: 32px; border-radius: 4px;"></div>
+                        <span class="h4 text-primary fw-bold ms-2 mb-0">Eleonetech</span>
+                        <span class="text-muted ms-2">A Onetech company</span>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 text-center">
+                    <div class="bg-warning bg-opacity-25 p-3 rounded">
+                        <h2 class="text-primary fw-bold mb-1">Integra Lines Production Report Dashboard</h2>
+                        <small class="text-muted">Target: 2790</small>
+                    </div>
+                </div>
+                
+                <div class="col-md-4 text-end">
+                    <div class="d-flex align-items-center justify-content-end">
+                        <div class="text-end me-3">
+                            <div class="fw-semibold" id="current-date"></div>
+                            <div class="h5 text-primary fw-bold" id="current-time"></div>
+                        </div>
+                        <button id="start-stop-btn" class="btn btn-danger fw-bold">
+                            <i class="fas fa-stop"></i> STOP
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Controls -->
+    <div class="container-fluid px-4 mb-4">
+        <div class="row align-items-center">
+            <div class="col-md-3">
+                <a href="{{ path('production_upload') }}" class="btn btn-success">
+                    <i class="fas fa-upload"></i> Upload Excel File
+                </a>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-calendar text-muted me-2"></i>
+                    <label class="form-label me-2 mb-0">Date:</label>
+                    <select id="date-selector" class="form-select">
+                        <option value="">Select Date</option>
+                        {% for date in dates %}
+                            <option value="{{ date|date('Y-m-d') }}">{{ date|date('m/d/Y') }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <button id="refresh-btn" class="btn btn-primary">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Production Cards -->
+    <div class="container-fluid px-4">
+        <div class="row" id="production-cards">
+            <!-- Cards will be populated by JavaScript -->
+        </div>
+    </div>
+</div>
+
+<script>
+// Update time
+function updateTime() {
+    const now = new Date();
+    document.getElementById('current-date').textContent = now.toLocaleDateString('fr-FR');
+    document.getElementById('current-time').textContent = now.toLocaleTimeString('fr-FR');
+}
+
+// Start/Stop button
+let isRunning = true;
+document.getElementById('start-stop-btn').addEventListener('click', function() {
+    isRunning = !isRunning;
+    this.className = isRunning ? 'btn btn-danger fw-bold' : 'btn btn-success fw-bold';
+    this.innerHTML = isRunning ? '<i class="fas fa-stop"></i> STOP' : '<i class="fas fa-play"></i> START';
+});
+
+// Load production data
+function loadProductionData(date) {
+    if (!date) return;
+    
+    fetch(`{{ path('production_data', {'date': 'DATE_PLACEHOLDER'}) }}`.replace('DATE_PLACEHOLDER', date))
+        .then(response => response.json())
+        .then(data => {
+            renderProductionCards(data);
+        })
+        .catch(error => {
+            console.error('Error loading production data:', error);
+        });
+}
+
+// Render production cards
+function renderProductionCards(data) {
+    const container = document.getElementById('production-cards');
+    container.innerHTML = '';
+    
+    data.forEach(item => {
+        const card = document.createElement('div');
+        card.className = 'col-md-6 col-lg-4 col-xl-3 mb-4';
+        
+        const shiftsHtml = item.shifts.map(shift => 
+            `<div class="d-flex justify-content-between small">
+                <span>${shift.poste}:</span>
+                <span>${shift.realiseParPoste}/${shift.targetParPoste}</span>
+            </div>`
+        ).join('');
+        
+        card.innerHTML = `
+            <div class="card border-primary border-2 shadow">
+                <div class="card-header bg-primary text-white text-center">
+                    <h6 class="card-title mb-0 fw-bold">${item.nom}</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="text-end">
+                            <small class="text-muted">Target</small>
+                            <div class="h5 fw-bold">${item.target}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3" style="height: 100px;">
+                        <div class="progress" style="height: 100%;">
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: ${Math.min(item.percentage, 100)}%; background-color: ${item.color};"
+                                 aria-valuenow="${item.percentage}" aria-valuemin="0" aria-valuemax="100">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <div class="d-flex justify-content-between">
+                            <small class="text-muted">Total Réali</small>
+                            <span class="fw-bold">${item.totalReali}</span>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <small class="text-muted">Pourcentage</small>
+                            <span class="badge ${item.percentage > 80 ? 'bg-success' : item.percentage > 50 ? 'bg-warning' : 'bg-danger'}">
+                                ${item.percentage.toFixed(2)}%
+                            </span>
+                        </div>
+                    </div>
+                    
+                    ${shiftsHtml ? `
+                        <div class="mt-2 pt-2 border-top">
+                            <small class="text-muted fw-semibold">Shifts:</small>
+                            ${shiftsHtml}
+                        </div>
+                    ` : ''}
+                    
+                    <button class="btn btn-success btn-sm w-100 mt-3">
+                        <i class="fas fa-check"></i> Details
+                    </button>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(card);
+    });
+}
+
+// Event listeners
+document.getElementById('date-selector').addEventListener('change', function() {
+    loadProductionData(this.value);
+});
+
+document.getElementById('refresh-btn').addEventListener('click', function() {
+    const selectedDate = document.getElementById('date-selector').value;
+    if (selectedDate) {
+        loadProductionData(selectedDate);
+    }
+});
+
+// Initialize
+updateTime();
+setInterval(updateTime, 1000);
+
+// Load initial data if date is selected
+const initialDate = document.getElementById('date-selector').value;
+if (initialDate) {
+    loadProductionData(initialDate);
+}
+</script>
+{% endblock %}

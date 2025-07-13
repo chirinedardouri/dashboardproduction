@@ -1,0 +1,48 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Upload Excel File{% endblock %}
+
+{% block body %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Upload Production Excel File</h3>
+                </div>
+                <div class="card-body">
+                    {% for message in app.flashes('success') %}
+                        <div class="alert alert-success">{{ message }}</div>
+                    {% endfor %}
+                    
+                    {% for message in app.flashes('error') %}
+                        <div class="alert alert-danger">{{ message }}</div>
+                    {% endfor %}
+                    
+                    {{ form_start(form) }}
+                        <div class="mb-3">
+                            {{ form_row(form.excelFile) }}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form_row(form.submit) }}
+                        </div>
+                    {{ form_end(form) }}
+                    
+                    <div class="mt-4">
+                        <h5>Expected Excel Format:</h5>
+                        <ul class="list-unstyled">
+                            <li><strong>Column A:</strong> Week info (Semaine S20, S21, etc.)</li>
+                            <li><strong>Column B:</strong> BRAS Name (IM USER, IM MEAS, etc.)</li>
+                            <li><strong>Column C:</strong> Cad / H (Cadence per hour)</li>
+                            <li><strong>Column D:</strong> Obj/ Poste (Objective per shift)</li>
+                            <li><strong>Date Headers:</strong> 5/14/2025, 5/15/2025, etc.</li>
+                            <li><strong>For each date:</strong> REF, Planifié, Réalisé columns for P1, P2, P3</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
