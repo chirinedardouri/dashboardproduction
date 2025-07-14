@@ -66,49 +66,81 @@ public function debugExcel(Request $request): Response
     $form->handleRequest($request);
 
     if ($form->isSubmitted() && $form->isValid()) {
-        /** @var UploadedFile $uploadedFile */
         $uploadedFile = $form->get('excelFile')->getData();
-
+        
         if ($uploadedFile) {
             try {
                 $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($uploadedFile->getRealPath());
-                $worksheet   = $spreadsheet->getActiveSheet();
-                $data        = $worksheet->toArray();
-
-                // Afficher les 10 premières lignes
+                $worksheet = $spreadsheet->getActiveSheet();
+                $data = $worksheet->toArray();
+                
+                // Show first 15 rows of raw data
                 $debugData = [];
-                for ($i = 0; $i < min(10, count($data)); $i++) {
+                for ($i = 0; $i < min(15, count($data)); $i++) {
                     $debugData[] = [
-                        'row'  => $i,
-                        'data' => $data[$i],
+                        'row' => $i,
+                        'data' => $data[$i]
                     ];
                 }
+                
+                // Check for BRAS entities in database
+                $brasEntities = $this->entityManager->getRepository(\App\Entity\Bras::class)->findAll();
+               $brasNames = array_map(fn ($b) => $b->getNom(), $brasEntities);
 
-                // Vérifie les BRAS existants
-                $brasNames = array_map(
-                    fn ($b) => $b->getName(),
-                    $this->entityManager->getRepository(\App\Entity\Bras::class)->findAll()
-                );
-
+                
                 return $this->render('dashboard/debug.html.twig', [
                     'debugData' => $debugData,
                     'brasNames' => $brasNames,
                     'totalRows' => count($data),
-                    'form'      => $form->createView(),
+                    'form' => $form->createView()
                 ]);
-
-            } catch (\Throwable $e) {
-                $this->addFlash('error', 'Error reading Excel file: '.$e->getMessage());
+                
+            } catch (\Exception $e) {
+                $this->addFlash('error', 'Error reading Excel file: ' . $e->getMessage());
             }
         }
     }
-
-    // GET initial ou formulaire invalide
+    
     return $this->render('dashboard/debug.html.twig', [
-        'form' => $form->createView(),
+        'form' => $form->createView()
     ]);
 }
 
+#[Route('/dashboard/seed-bras', name: 'seed_bras')]
+public function seedBras(): Response
+{
+    // Create BRAS entities based on your Excel file
+    $brasNames = [
+        'PCBA USER',
+        'PCBA MEAS',
+        'Finition',
+        'Finition (2éme chaine)',
+        'RT',
+        'RN',
+        'Masquage pelable + percage corks'
+    ];
+    
+    $createdCount = 0;
+    
+    foreach ($brasNames as $name) {
+        $existing = $this->entityManager->getRepository(\App\Entity\Bras::class)
+            ->findOneBy(['name' => $name]);
+        
+        if (!$existing) {
+            $bras = new \App\Entity\Bras();
+            $bras->setName($name);
+            // Set other required properties if any
+            $this->entityManager->persist($bras);
+            $createdCount++;
+        }
+    }
+    
+    $this->entityManager->flush();
+    
+    $this->addFlash('success', "Created $createdCount BRAS entities");
+    
+    return $this->redirectToRoute('dashboard_import');
+}
 
     // Keep the JSON API endpoint for AJAX uploads if needed
     #[Route('/dashboard/api/import', name: 'api_dashboard_import', methods: ['POST'])]

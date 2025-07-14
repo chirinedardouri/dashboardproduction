@@ -141,76 +141,65 @@ class ExcelProcessingService
         
         error_log('Header row: ' . print_r($headerRow, true));
         
+        // Based on your Excel structure, dates are in row 0, shifts in row 1, headers in row 2
         foreach ($headerRow as $colIndex => $cellValue) {
-            error_log("Checking column $colIndex: '$cellValue'");
-            
             if ($this->isDateString($cellValue)) {
                 $dateStr = $this->formatDateString($cellValue);
                 $dates[] = $dateStr;
                 
                 error_log("Found date: $dateStr at column $colIndex");
                 
-                // For each date, we have REF, P1, P2, P3 columns
-                // Based on your Excel format, adjust these column indices
+                // Based on your structure: each date has P1, P2, P3 with REF, Planifié, Réalisé each
+                // P1 starts right after date, P2 starts 3 columns later, P3 starts 6 columns later
                 $dateColumns[] = [
                     'date' => $dateStr,
-                    'ref_col' => $colIndex,
-                    'p1_planifie' => $colIndex + 1,
-                    'p1_realise' => $colIndex + 2,
-                    'p2_planifie' => $colIndex + 4,
-                    'p2_realise' => $colIndex + 5,
-                    'p3_planifie' => $colIndex + 7,
-                    'p3_realise' => $colIndex + 8
+                    'p1_ref' => $colIndex + 1,      // REF for P1
+                    'p1_planifie' => $colIndex + 2, // Planifié for P1
+                    'p1_realise' => $colIndex + 3,  // Réalisé for P1
+                    'p2_ref' => $colIndex + 4,      // REF for P2
+                    'p2_planifie' => $colIndex + 5, // Planifié for P2
+                    'p2_realise' => $colIndex + 6,  // Réalisé for P2
+                    'p3_ref' => $colIndex + 7,      // REF for P3
+                    'p3_planifie' => $colIndex + 8, // Planifié for P3
+                    'p3_realise' => $colIndex + 9   // Réalisé for P3
                 ];
             }
         }
         
         error_log('Found date columns: ' . print_r($dateColumns, true));
         
-        // If no date columns found, try to find them in other rows
-        if (empty($dateColumns)) {
-            error_log('No dates found in first row, checking other rows...');
-            
-            // Check first few rows for date patterns
-            for ($rowIndex = 0; $rowIndex < min(5, count($rawData)); $rowIndex++) {
-                $row = $rawData[$rowIndex];
-                foreach ($row as $colIndex => $cellValue) {
-                    if ($this->isDateString($cellValue)) {
-                        error_log("Found date '$cellValue' in row $rowIndex, column $colIndex");
-                    }
-                }
-            }
-        }
-        
-        // Process each BRAS row (skip header rows)
-        for ($i = 2; $i < count($rawData); $i++) {
+        // Process each BRAS row (start from row 3, skip header rows 0, 1, 2)
+        for ($i = 3; $i < count($rawData); $i++) {
             $row = $rawData[$i];
-            if (empty($row) || empty($row[1])) continue;
+            if (empty($row) || empty($row[0])) continue;
             
-            $brasName = $row[1]; // Column B contains BRAS name
-            $cadH = floatval($row[2] ?? 0); // Column C contains Cad / H
-            $objPoste = floatval($row[3] ?? 0); // Column D contains Obj/ Poste
+            $brasName = trim($row[0]); // Column A contains BRAS name
+            $cadH = floatval($row[1] ?? 0); // Column B contains Cad / H
+            $objPoste = floatval($row[2] ?? 0); // Column C contains Obj/ Poste
             
             error_log("Processing row $i: BRAS='$brasName', CadH=$cadH, ObjPoste=$objPoste");
             
-            if ($brasName && $brasName !== 'BRAS') {
+            if ($brasName && $brasName !== 'BRAS' && !empty(trim($brasName))) {
                 // Process each date column
                 foreach ($dateColumns as $dateCol) {
                     $shifts = [
                         [
                             'poste' => 'P1',
-                            'planifie' => floatval($row[$dateCol['p1_planifie']] ?? 0),
-                            'realise' => floatval($row[$dateCol['p1_realise']] ?? 0)
+                            'ref' => $row[$dateCol['p1_ref']] ?? '',
+                            'planifie' => $this->parseNumericValue($row[$dateCol['p1_planifie']] ?? 0),
+                            'realise' => $this->parseNumericValue($row[$dateCol['p1_realise']] ?? 0)
                         ],
                         [
                             'poste' => 'P2',
-                            'planifie' => floatval($row[$dateCol['p2_planifie']] ?? 0),
-                            'realise' => floatval($row[$dateCol['p2_realise']] ?? 0)
+                            'ref' => $row[$dateCol['p2_ref']] ?? '',
+                            'planifie' => $this->parseNumericValue($row[$dateCol['p2_planifie']] ?? 0),
+                            'realise' => $this->parseNumericValue($row[$dateCol['p2_realise']] ?? 0)
                         ],
                         [
                             'poste' => 'P3',
-                            'planifie' => floatval($row[$dateCol['p3_planifie']] ?? 0),
-                            'realise' => floatval($row[$dateCol['p3_realise']] ?? 0)
+                            'ref' => $row[$dateCol['p3_ref']] ?? '',
+                            'planifie' => $this->parseNumericValue($row[$dateCol['p3_planifie']] ?? 0),
+                            'realise' => $this->parseNumericValue($row[$dateCol['p3_realise']] ?? 0)
                         ]
                     ];
                     
@@ -219,7 +208,7 @@ class ExcelProcessingService
                         $entry = [
                             'date' => $dateCol['date'],
                             'poste' => $shift['poste'],
-                            'ref' => $row[$dateCol['ref_col']] ?? '',
+                            'ref' => $shift['ref'],
                             'bras' => $brasName,
                             'objectifParPoste' => $objPoste,
                             'targetParPoste' => $shift['planifie'],
@@ -245,6 +234,11 @@ class ExcelProcessingService
     private function isDateString($value): bool
     {
         if (empty($value)) return false;
+        
+        // Check for French date format like "Lundi 28/10/2024"
+        if (is_string($value) && preg_match('/^(Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+\d{1,2}\/\d{1,2}\/\d{4}$/', $value)) {
+            return true;
+        }
         
         // Check if it's a date string (MM/DD/YYYY format)
         if (is_string($value) && preg_match('/^\d{1,2}\/\d{1,2}\/\d{4}$/', $value)) {
@@ -281,6 +275,15 @@ class ExcelProcessingService
         }
         
         if (is_string($value)) {
+            // Handle French date format like "Lundi 28/10/2024"
+            if (preg_match('/^(Lundi|Mardi|Mercredi|Jeudi|Vendredi|Samedi|Dimanche)\s+(\d{1,2}\/\d{1,2}\/\d{4})$/', $value, $matches)) {
+                $dateStr = $matches[2];
+                $date = \DateTime::createFromFormat('d/m/Y', $dateStr);
+                if ($date !== false) {
+                    return $date->format('Y-m-d');
+                }
+            }
+            
             // Try different date formats
             $formats = ['m/d/Y', 'd/m/Y', 'Y-m-d', 'n/j/Y'];
             
@@ -293,5 +296,26 @@ class ExcelProcessingService
         }
         
         return $value;
+    }
+    
+    private function parseNumericValue($value): float
+    {
+        if (is_numeric($value)) {
+            return floatval($value);
+        }
+        
+        if (is_string($value)) {
+            // Remove non-breaking spaces and other whitespace
+            $cleaned = preg_replace('/[\s\u00A0]+/', '', $value);
+            
+            // Remove any non-numeric characters except decimal point
+            $cleaned = preg_replace('/[^0-9.]/', '', $cleaned);
+            
+            if (is_numeric($cleaned)) {
+                return floatval($cleaned);
+            }
+        }
+        
+        return 0.0;
     }
 }
