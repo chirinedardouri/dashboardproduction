@@ -1,10 +1,22 @@
 <?php
 
 namespace App\Controller;
-
+use App\Service\ExcelParser;
+use Psr\Log\LoggerInterface;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use App\Entity\Bras;
+use App\Entity\ProductionFile;
+use App\Entity\ShiftProduction;
+use App\Entity\User;
 use App\Entity\ProductionLine;
 use App\Entity\ProductionSchedule;
 use App\Entity\ProductionTarget;
+use App\Repository\BrasRepository;
+use App\Repository\ProductionLineRepository;
+use App\Repository\ProductionTargetRepository;
+use App\Repository\ProductionScheduleRepository;
+use App\Repository\ProductionFileRepository;
+use App\Repository\ShiftProductionRepository;   
 use App\Form\ExcelUploadType;
 use App\Service\ExcelProcessingService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -59,54 +71,119 @@ class DashboardController extends AbstractController
             'form' => $form->createView(),
         ]);
     }
-#[Route('/dashboard/debug-excel', name: 'debug_excel', methods: ['GET', 'POST'])]
-public function debugExcel(Request $request): Response
-{
-    $form = $this->createForm(ExcelUploadType::class);
-    $form->handleRequest($request);
-
-    if ($form->isSubmitted() && $form->isValid()) {
-        $uploadedFile = $form->get('excelFile')->getData();
-        
-        if ($uploadedFile) {
+    #[Route('/dashboard/debug-excel', name: 'debug_excel', methods: ['GET', 'POST'], requirements: ['_locale' => 'en|fr'])]
+    #[Route('/dashboard/bras-preview', name: 'bras_preview', methods: ['GET'], requirements: ['_locale' => 'en|fr'])]
+    public function debugExcel(Request $request, ExcelParser $excelParser, LoggerInterface $logger, BrasRepository $brasRepository): Response
+    {
+        $logger->info('Entering debugExcel controller');
+        $brasNames = $brasRepository->findAllValidNames();
+    
+        if ($request->attributes->get('_route') === 'bras_preview') {
+            $logger->info('Handling BRAS preview request');
+            $brasList = $brasRepository->findAllValidNames();
+            return new JsonResponse(['success' => true, 'brasList' => $brasList]);
+        }
+    
+        if ($request->isMethod('POST')) {
+            $logger->info('Processing POST request');
+            $file = $request->files->get('excelFile');
+            if (!$file || $file->getError() !== UPLOAD_ERR_OK) {
+                $logger->error('No file uploaded or upload error: ' . ($file ? $file->getErrorMessage() : 'No file'));
+                return new JsonResponse(['success' => false, 'message' => 'No file uploaded or upload error: ' . ($file ? $file->getErrorMessage() : 'No file')]);
+            }
+    
+            $filePath = $file->getPathname();
+            $isPreview = $request->query->get('preview') === 'true';
+    
+            $logger->info("File received, Preview: $isPreview, FilePath: $filePath");
+    
             try {
-                $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($uploadedFile->getRealPath());
-                $worksheet = $spreadsheet->getActiveSheet();
-                $data = $worksheet->toArray();
-                
-                // Show first 15 rows of raw data
-                $debugData = [];
-                for ($i = 0; $i < min(15, count($data)); $i++) {
-                    $debugData[] = [
-                        'row' => $i,
-                        'data' => $data[$i]
+                if ($isPreview) {
+                    $logger->info('Handling preview request');
+                    $spreadsheet = IOFactory::load($filePath);
+                    $worksheet = $spreadsheet->getActiveSheet();
+                    $highestRow = min($worksheet->getHighestRow(), 350);
+                    $highestColumn = min($worksheet->getHighestColumn(), 'BM');
+                    $rawData = [];
+                    for ($row = 4; $row <= min($highestRow, 350); $row++) {
+                        $rowData = $worksheet->rangeToArray("A$row:$highestColumn$row", null, true, true, true)[$row];
+                        $rawData[] = array_values($rowData);
+                    }
+    
+                    $result = $excelParser->parseExcel($filePath, true);
+                    if (!$result['success']) {
+                        $logger->error('Preview failed: ' . ($result['message'] ?? 'Unknown error'));
+                        return new JsonResponse(['success' => false, 'message' => $result['message'] ?? 'Failed to preview file']);
+                    }
+    
+                    $weekName = trim($worksheet->getCell('A1')->getValue() ?? 'Unknown Week');
+                    $previewData = [
+                        'totalRows' => $highestRow,
+                        'lastWeek' => [
+                            'name' => $weekName,
+                            'dateRange' => $result['dateRange'],
+                            'data' => $result['data']
+                        ],
+                        'brasNames' => $result['brasNames'],
+                        'rawData' => array_slice($rawData, 0, 20)
                     ];
+    
+                    $logger->info('Preview successful, Week Name: ' . $weekName . ', Date Range: ' . json_encode($previewData['lastWeek']['dateRange']));
+                    return new JsonResponse(['success' => true, 'totalRows' => $highestRow, 'lastWeek' => $previewData['lastWeek'], 'brasNames' => $previewData['brasNames'], 'rawData' => $previewData['rawData']]);
+                } else {
+                    $logger->info('Handling upload request');
+                    if ($excelParser->parseExcel($filePath, false, $file)) {
+                        $this->addFlash('success', 'File uploaded and saved successfully');
+                        $logger->info('Upload successful');
+                        return new JsonResponse(['success' => true]);
+                    } else {
+                        $logger->error('Failed to process file');
+                        return new JsonResponse(['success' => false, 'message' => 'Failed to process file']);
+                    }
                 }
-                
-                // Check for BRAS entities in database
-                $brasEntities = $this->entityManager->getRepository(\App\Entity\Bras::class)->findAll();
-               $brasNames = array_map(fn ($b) => $b->getNom(), $brasEntities);
-
-                
-                return $this->render('dashboard/debug.html.twig', [
-                    'debugData' => $debugData,
-                    'brasNames' => $brasNames,
-                    'totalRows' => count($data),
-                    'form' => $form->createView()
-                ]);
-                
             } catch (\Exception $e) {
-                $this->addFlash('error', 'Error reading Excel file: ' . $e->getMessage());
+                $logger->error('Exception during processing: ' . $e->getMessage());
+                return new JsonResponse(['success' => false, 'message' => 'Error during processing: ' . $e->getMessage()]);
             }
         }
-    }
     
-    return $this->render('dashboard/debug.html.twig', [
-        'form' => $form->createView()
-    ]);
-}
+        $logger->info('Rendering debug_excel template');
+        return $this->render('dashboard/debug_excel.html.twig', [
+            'brasNames' => $brasNames
+        ]);
+    }
+    #[Route('/dashboard/seed-bras', name: 'seed_bras', requirements: ['_locale' => 'en|fr'])]
+    public function seedBras(BrasRepository $brasRepository): Response
+    {
+        $brasNames = [
+            'PCBA USER',
+            'PCBA MEAS',
+            'Finition',
+            'Finition (2éme chaine)',
+            'RT',
+            'RN',
+            'Masquage pelable + percage corks',
+            'ETUVE 24h'
+        ];
 
-#[Route('/dashboard/seed-bras', name: 'seed_bras')]
+        $createdCount = 0;
+
+        foreach ($brasNames as $name) {
+            $existing = $brasRepository->findOneBy(['nom' => $name]);
+            if (!$existing) {
+                $bras = new Bras();
+                $bras->setNom($name);
+                $bras->setValid(true);
+                $bras->setDeleted(false);
+                $brasRepository->saveBras($bras);
+                $createdCount++;
+            }
+        }
+
+        $this->addFlash('success', "Created $createdCount BRAS entities");
+        return $this->redirectToRoute('debug_excel', ['_locale' => $this->getParameter('kernel.default_locale')]);
+    }
+/* #[Route('/dashboard/seed-bras', name: 'seed_bras')]
 public function seedBras(): Response
 {
     // Create BRAS entities based on your Excel file
@@ -140,7 +217,7 @@ public function seedBras(): Response
     $this->addFlash('success', "Created $createdCount BRAS entities");
     
     return $this->redirectToRoute('dashboard_import');
-}
+} */
 
     // Keep the JSON API endpoint for AJAX uploads if needed
     #[Route('/dashboard/api/import', name: 'api_dashboard_import', methods: ['POST'])]

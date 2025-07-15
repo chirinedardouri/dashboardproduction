@@ -11,6 +11,7 @@
         "doctrine/orm": "^2.7",
         "knplabs/knp-paginator-bundle": "^5.2",
         "liip/imagine-bundle": "^2.3",
+        "monolog/monolog": "^3.9",
         "phpoffice/phpspreadsheet": "^4.4",
         "stof/doctrine-extensions-bundle": "^1.4",
         "symfony/apache-pack": "^1.0",

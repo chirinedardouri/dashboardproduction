@@ -87,4 +87,15 @@ class BrasRepository extends ServiceEntityRepository
 
         return $bras;
     }
+    public function findAllValidNames(): array
+    {
+        return $this->createQueryBuilder('b')
+            ->select('b.nom')
+            ->where('b.valid = :valid')
+            ->andWhere('b.deleted = :deleted')
+            ->setParameter('valid', true)
+            ->setParameter('deleted', false)
+            ->getQuery()
+            ->getSingleColumnResult();
+    }
 }
