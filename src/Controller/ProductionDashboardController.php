@@ -45,13 +45,12 @@ class ProductionDashboardController extends AbstractController
         return $this->render('admin/production.html.twig', [
             'availableDates' => $availableDates,
             'selectedDate' => $selectedDate,
-            'statistics' => $statistics
+            'statistics' => $statistics,
         ]);
     }
 
     private function getProductionStatistics(string $date): array
     {
-        // Get all production data for the selected date
         $productions = $this->entityManager->getRepository(ShiftProduction::class)
             ->createQueryBuilder('sp')
             ->select('sp', 'b')
@@ -65,38 +64,35 @@ class ProductionDashboardController extends AbstractController
             ->getResult();
 
         $statistics = [];
-        
         foreach ($productions as $production) {
             $brasName = $production->getBras()->getNom();
-            
             if (!isset($statistics[$brasName])) {
                 $statistics[$brasName] = [
                     'bras' => $production->getBras(),
                     'totalTarget' => 0,
                     'totalRealised' => 0,
                     'percentage' => 0,
-                    'shifts' => []
+                    'shifts' => [],
                 ];
             }
 
-            $statistics[$brasName]['totalTarget'] += $production->getTargetParPoste();
-            $statistics[$brasName]['totalRealised'] += $production->getRealiseParPoste();
-            
+            $statistics[$brasName]['totalTarget'] += $production->getTargetParPoste() ?? 0;
+            $statistics[$brasName]['totalRealised'] += $production->getRealiseParPoste() ?? 0;
+
             $statistics[$brasName]['shifts'][] = [
                 'posteType' => $production->getPosteType(),
                 'ref' => $production->getRef(),
-                'target' => $production->getTargetParPoste(),
-                'realised' => $production->getRealiseParPoste(),
-                'cadenceHoraire' => $production->getCadenceHoraire(),
-                'objectifParPoste' => $production->getObjectifParPoste()
+                'target' => $production->getTargetParPoste() ?? 0,
+                'realised' => $production->getRealiseParPoste() ?? 0,
+                'cadenceHoraire' => $production->getCadenceHoraire() ?? 0,
+                'objectifParPoste' => $production->getObjectifParPoste() ?? 0,
             ];
         }
 
         // Calculate percentages
         foreach ($statistics as &$stat) {
-            if ($stat['totalTarget'] > 0) {
-                $stat['percentage'] = round(($stat['totalRealised'] / $stat['totalTarget']) * 100, 1);
-            }
+            $totalTarget = $stat['totalTarget'];
+            $stat['percentage'] = ($totalTarget > 0) ? round(($stat['totalRealised'] / $totalTarget) * 100, 1) : 0;
         }
 
         return $statistics;
@@ -105,9 +101,11 @@ class ProductionDashboardController extends AbstractController
     #[Route('/dashboard/details/{brasId}/{date}', name: 'production_details')]
     public function details(int $brasId, string $date): Response
     {
-        // This will be implemented later for the details button
         $bras = $this->entityManager->getRepository(Bras::class)->find($brasId);
-        
+        if (!$bras) {
+            throw $this->createNotFoundException('Bras not found');
+        }
+
         $productions = $this->entityManager->getRepository(ShiftProduction::class)
             ->createQueryBuilder('sp')
             ->where('sp.bras = :bras')
@@ -122,7 +120,7 @@ class ProductionDashboardController extends AbstractController
         return $this->render('admin/main.html.twig', [
             'bras' => $bras,
             'date' => $date,
-            'productions' => $productions
+            'productions' => $productions,
         ]);
     }
 }
