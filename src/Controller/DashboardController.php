@@ -8,11 +8,9 @@ use App\Entity\Bras;
 use App\Entity\ProductionFile;
 use App\Entity\ShiftProduction;
 use App\Entity\User;
-use App\Entity\ProductionLine;
 use App\Entity\ProductionSchedule;
 use App\Entity\ProductionTarget;
 use App\Repository\BrasRepository;
-use App\Repository\ProductionLineRepository;
 use App\Repository\ProductionTargetRepository;
 use App\Repository\ProductionScheduleRepository;
 use App\Repository\ProductionFileRepository;
@@ -34,26 +32,7 @@ class DashboardController extends AbstractController
         private ExcelProcessingService $importService
     ) {}
 
-    #[Route('/dashboard', name: 'dashboard')]
-    public function index(): Response
-    {
-        $productionLines = $this->getProductionLinesWithData();
-        $shiftData = $this->getShiftData();
-        
-        return $this->render('dashboard/index.html.twig', [
-            'productionLines' => $productionLines,
-            'shiftData' => $shiftData,
-            'currentDate' => new \DateTime(),
-        ]);
-    }
-
-    #[Route('/dashboard/api/production-data', name: 'api_production_data')]
-    public function getProductionData(): JsonResponse
-    {
-        $data = $this->getProductionLinesWithData();
-        return new JsonResponse($data);
-    }
-
+   
     #[Route('/dashboard/api/shift-data', name: 'api_shift_data')]
     public function fetchShiftData(): JsonResponse
     {
@@ -61,16 +40,7 @@ class DashboardController extends AbstractController
         return new JsonResponse($data);
     }
 
-    // GET route - Display the upload form
-    #[Route('/dashboard/import', name: 'dashboard_import', methods: ['GET'])]
-    public function showImportForm(): Response
-    {
-        $form = $this->createForm(ExcelUploadType::class);
-        
-        return $this->render('dashboard/upload.html.twig', [
-            'form' => $form->createView(),
-        ]);
-    }
+
     #[Route('/dashboard/debug-excel', name: 'debug_excel', methods: ['GET', 'POST'], requirements: ['_locale' => 'en|fr'])]
     #[Route('/dashboard/bras-preview', name: 'bras_preview', methods: ['GET'], requirements: ['_locale' => 'en|fr'])]
     public function debugExcel(Request $request, ExcelParser $excelParser, LoggerInterface $logger, BrasRepository $brasRepository): Response

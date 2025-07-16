@@ -9,18 +9,23 @@ use App\Entity\Bras;
 use App\Entity\ShiftProduction;
 use App\Entity\User;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Bundle\SecurityBundle\Security;
 
 class ExcelParser
 {
     private $logger;
     private $entityManager;
     private $productionFileId;
+    private Security $security;
+    
 
-    public function __construct(LoggerInterface $logger, EntityManagerInterface $entityManager)
+    public function __construct(LoggerInterface $logger, EntityManagerInterface $entityManager,Security $security)
     {
         $this->logger = $logger;
         $this->entityManager = $entityManager;
         date_default_timezone_set('UTC');
+         $this->security = $security; 
+
     }
 
     public function parseExcel($filePath, $preview = false, ?UploadedFile $uploadedFile = null)
@@ -199,11 +204,12 @@ class ExcelParser
 
     private function createProductionFileRecord($filePath, ?UploadedFile $uploadedFile = null)
     {
-        $user = $this->entityManager->getRepository(User::class)->find(1);
-        if (!$user) {
-            $this->logger->error('User with ID 1 not found');
-            throw new \Exception('User with ID 1 not found');
-        }
+         $user = $this->security->getUser();
+    
+    if (!$user) {
+        $this->logger->error('No user is currently logged in, log in first :)');
+        throw new \Exception('No user is currently logged in, log in first :)');
+    }
 
         $productionFile = new ProductionFile();
         $productionFile->setFilename($uploadedFile ? $uploadedFile->getClientOriginalName() : basename($filePath));
