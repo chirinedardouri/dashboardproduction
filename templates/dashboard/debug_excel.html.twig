@@ -1,11 +1,43 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Debug Excel - Production Dashboard</title>
+{# templates/dashboard/debug_excel.html.twig #}
+{% extends 'base.html.twig' %}
+
+{% block title %}Debug Excel - Production Dashboard{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Include your admin CSS files -->
+    <link href="{{ asset('vendors/font-awesome/css/font-awesome.min.css') }}" rel="stylesheet">
+    <link href="{{ asset('build/css/custom.min.css') }}" rel="stylesheet">
+    
     <style>
+        /* Keep your existing layout but don't override Bootstrap button styles */
+        .main_container {
+            background: #F7F7F7;
+            position: relative;
+            width: 100%;
+            min-height: 100vh;
+        }
+        
+        .left_col {
+            background: #2A3F54;
+            position: fixed;
+            left: 0;
+            top: 0;
+            height: 100vh;
+            width: 230px;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        
+        .right_col {
+            background: #F7F7F7;
+            margin-left: 230px;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
         .table-container {
             margin: 20px 0;
             overflow-x: auto;
@@ -33,58 +65,116 @@
         .modal-dialog {
             max-width: 500px;
         }
+        
+        .page-title {
+            border-bottom: 1px solid #E6E9ED;
+            padding-bottom: 15px;
+            margin-bottom: 25px;
+        }
+        
+        .x_panel {
+            background: #FFFFFF;
+            border: 1px solid #E6E9ED;
+            border-radius: 3px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+            margin-bottom: 20px;
+            padding: 10px 17px;
+            width: 100%;
+        }
+        
+        .x_title {
+            border-bottom: 2px solid #E6E9ED;
+            padding: 1px 5px 6px;
+            margin-bottom: 15px;
+        }
+        
+        .x_content {
+            padding: 0 5px 6px;
+        }
     </style>
-</head>
-<body>
-    <div class="container">
-        <h1 class="mt-4 text-center">Debug Excel - Production Dashboard</h1>
+{% endblock %}
 
-        <form id="excelForm" enctype="multipart/form-data" class="mb-4">
-            <div class="mb-3">
-                <label for="excelFile" class="form-label">Upload Excel File</label>
-                <input type="file" class="form-control" id="excelFile" name="excelFile" accept=".xlsx,.xls">
-            </div>
-            <button type="button" id="previewBtn" class="btn btn-primary btn-custom">Preview Excel</button>
-            <button type="button" id="brasBtn" class="btn btn-info btn-custom" data-bs-toggle="modal" data-bs-target="#brasModal">Preview BRAS List</button>
-            <button type="button" id="uploadBtn" class="btn btn-success btn-custom">Upload</button>
-        </form>
-
-        <div id="previewResult"></div>
-        <div id="uploadResult"></div>
-
-        <!-- BRAS Modal -->
-        <div class="modal fade" id="brasModal" tabindex="-1" aria-labelledby="brasModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="brasModalLabel">BRAS List</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <div class="modal-body" id="brasModalBody"></div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    </div>
-                </div>
+{% block body %}
+    <div class="main_container">
+        <!-- Sidebar -->
+        <div class="left_col">
+            <div class="left_col scroll-view">
+                {% include 'admin/bars.html.twig' %}
             </div>
         </div>
+        
+        <!-- Main Content -->
+        <div class="right_col" role="main">
+                <div class="page-title">
+                    <div class="title_left">
+                        <h3>{{ "Excel File Upload"|trans }}</h3>
+                    </div>
+                </div>
+                <div class="clearfix"></div>
 
-        <!-- Notification Modal -->
-        <div class="modal fade" id="notificationModal" tabindex="-1" aria-labelledby="notificationModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="notificationModalLabel">Notification</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <div class="row">
+                    <div class="col-md-12 col-sm-12 col-xs-12">
+                        <div class="x_panel">
+                            <div class="x_title">
+                                <h2>{{ "Upload your excel file of the week"|trans }}</h2>
+                                <div class="clearfix"></div>
+                            </div>
+                            <div class="x_content">
+                                <form id="excelForm" enctype="multipart/form-data" class="mb-4">
+                                    <div class="mb-3">
+                                        <label for="excelFile" class="form-label">{{ "Upload Excel File"|trans }}</label>
+                                        <input type="file" class="form-control" id="excelFile" name="excelFile" accept=".xlsx,.xls">
+                                    </div>
+                                    <button type="button" id="previewBtn" class="btn btn-primary btn-custom">{{ "Preview Excel"|trans }}</button>
+                                    <button type="button" id="brasBtn" class="btn btn-info btn-custom" data-bs-toggle="modal" data-bs-target="#brasModal">{{ "Preview BRAS List"|trans }}</button>
+                                    <button type="button" id="uploadBtn" class="btn btn-success btn-custom">{{ "Upload"|trans }}</button>
+                                </form>
+
+                                <div id="previewResult"></div>
+                                <div id="uploadResult"></div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="modal-body" id="notificationModalBody"></div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    </div>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- BRAS Modal -->
+    <div class="modal fade" id="brasModal" tabindex="-1" aria-labelledby="brasModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="brasModalLabel">{{ "BRAS List"|trans }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="brasModalBody"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ "Close"|trans }}</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Notification Modal -->
+    <div class="modal fade" id="notificationModal" tabindex="-1" aria-labelledby="notificationModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="notificationModalLabel">{{ "Notification"|trans }}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="notificationModalBody"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ "Close"|trans }}</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -232,5 +322,4 @@
             if (backdrop) backdrop.remove();
         });
     </script>
-</body>
-</html>
+{% endblock %}

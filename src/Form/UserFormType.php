@@ -71,8 +71,8 @@ class UserFormType extends AbstractType
                 'required' => false,
                 'label' => 'Choisissez un profile *',
                 'query_builder' => fn (ProfileRepository $profileRepository) => $profileRepository->createQueryBuilder('p')
-                    ->andWhere('p.deleted = false')
-                    ->andWhere('p.valid = true '),
+                    ->andWhere('p.deleted = 0')
+                    ->andWhere('p.valid = 1 '),
                 'constraints' => [
                     //new NotBlank(['message' => 'Ne doit pas être vide']),
                 ],

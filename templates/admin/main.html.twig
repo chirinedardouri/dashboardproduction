@@ -1,5 +1,74 @@
-{% extends "admin/bars.html.twig" %}
+
+{% block stylesheets %}
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link href="{{ asset('build/css/dashboard.css') }}" rel="stylesheet">
+{% endblock %}
 
 {% block contenpage %}
-    <h1></h1>
+    <div class="dashboard-container">
+       <div class="header">
+    <h1>Integra Lines Production Report Dashboard</h1>
+  <a href="{{ path('app_admin_users', {'_locale': app.request.locale}) }}"
+   class="stop-btn"
+   style="background: #dc2626; color: white; border: none; padding: 5px 10px; border-radius: 5px; text-decoration: none; display: inline-block;">
+   <i class="fa fa-arrow-left"></i> Back to Users
+</a>
+
+</div>
+
+        <div class="date-selector">
+            <form method="GET" action="{{ path('app_admin_index', {'_locale': app.request.locale}) }}">
+                <input type="text" name="date" id="date" value="{{ selectedDate }}" placeholder="Select a date" readonly>
+            </form>
+        </div>
+
+        {% if statistics|length > 0 %}
+            <div class="statistics-grid">
+                {% for brasName, stat in statistics %}
+                    <div class="bras-card">
+                        <div class="bras-header">{{ brasName }}</div>
+                        <div class="bras-stats">
+                            <div class="stat-item">
+                                <span class="stat-label">Total Target:</span>
+                                <span class="stat-value">{{ stat.totalTarget|number_format(0) }}</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Total Realised:</span>
+                                <span class="stat-value">{{ stat.totalRealised|number_format(0) }}</span>
+                            </div>
+                            <div class="percentage {% if stat.percentage >= 90 %}good{% elseif stat.percentage >= 70 %}average{% else %}poor{% endif %}">
+                                {{ stat.percentage }}%
+                            </div>
+                            <button class="details-btn" onclick="window.location.href='{{ path('production_details', {brasId: stat.bras.id, date: selectedDate, '_locale': app.request.locale}) }}'">
+                                ✓ Details
+                            </button>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="no-data">
+                {% if selectedDate %}No data for {{ selectedDate }}{% else %}Select a date{% endif %}
+            </div>
+        {% endif %}
+    </div>
+{% endblock %}
+
+{% block javascripts %}
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        flatpickr("#date", {
+            dateFormat: "Y-m-d",
+            defaultDate: "{{ selectedDate }}",
+            onChange: function(selectedDates, dateStr) {
+                document.querySelector("form").submit();
+            },
+            disableMobile: true,
+            enable: [
+                {% for dateItem in availableDates %}
+                    "{{ dateItem.date|date('Y-m-d') }}"{% if not loop.last %},{% endif %}
+                {% endfor %}
+            ]
+        });
+    </script>
 {% endblock %}
